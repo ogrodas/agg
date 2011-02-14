@@ -24,7 +24,7 @@ import itertools
 
 def main(argv):
     try:
-        opts, args = getopt.getopt(argv, "h", ["groupby=","sortedgroupby=","sum=","count=","countuniq=","concat=","concatuniq=","max=","min=","seperator=","concat-seperator=","file=","help"])
+        opts, args = getopt.getopt(argv, "h", ["groupby=","sortedgroupby=","sum=","count=","countuniq=","concat=","concatuniq=","max=","min=","seperator=","concat-seperator=","file=","strip","help"])
     except getopt.GetoptError, err:
         usage()
         sys.exit(2)
@@ -40,6 +40,7 @@ def main(argv):
     seperator="|"
     concat_seperator=","
     outputstream=sys.stdout
+    col_strip=False
     for opt, arg in opts:
         if opt in ("--groupby"):
             keycols.extend(int(el) for el in arg.split(","))
@@ -65,6 +66,8 @@ def main(argv):
             concat_seperator=arg
         elif opt in ("--file"):
             outputstream=open(arg,"a+",0)
+        elif opt in ("--strip"):
+            col_strip=True
         elif opt in ('-h','--help'):
             usage()
             sys.exit()
@@ -86,7 +89,13 @@ def main(argv):
     db=OrderedDict()
     sorted_key=[]
     for line in inputstream:
+        if not line.split():continue
         new_elements=line.split(seperator) 
+        if col_strip:
+            new_elements=[col.strip() for col in new_elements]
+            print "--stripasdkløfjaslødfkjasdlk------------"
+        print new_elements
+            
         if sorted_keycols:
             new_sorted_key=[new_elements[col] for col in sorted_keycols]   
             if sorted_key!=new_sorted_key:
