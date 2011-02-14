@@ -24,7 +24,7 @@ import itertools
 
 def main(argv):
     try:
-        opts, args = getopt.getopt(argv, "h", ["groupby=","sortedgroupby=","sum=","count=","countuniq=","concat=","concatuniq=","max=","min=","seperator=","concat-seperator=","file=","strip","help"])
+        opts, args = getopt.getopt(argv, "h", ["groupby=","sortedgroupby=","sum=","count=","countuniq=","concat=","concatuniq=","max=","min=","first=","last=","seperator=","concat-seperator=","file=","strip","help"])
     except getopt.GetoptError, err:
         usage()
         sys.exit(2)
@@ -60,6 +60,10 @@ def main(argv):
             aggregators.extend(Maxer(el) for el in arg.split(","))
         elif opt in ( "--min"):
             aggregators.extend(Miner(el) for el in arg.split(","))
+        elif opt in ( "--last"):
+            aggregators.extend(Last(el) for el in arg.split(","))
+        elif opt in ( "--first"):
+            aggregators.extend(First(el) for el in arg.split(","))
         elif opt in ( "--seperator"):
             seperator=arg
         elif opt in ( "--concat--seperator"):
@@ -197,6 +201,29 @@ class Maxer(object):
 
     def get(self,aggrec):
         return aggrec
+
+
+class First(object):
+    def __init__(self,pos):
+        self.pos=int(pos)
+    def add(self,aggrec,new):
+        if not aggrec:
+            return new[self.pos]
+        else:
+            return aggrec
+    def get(self,aggrec):
+        return aggrec
+
+class Last(object):
+    def __init__(self,pos):
+        self.pos=int(pos)
+    def add(self,aggrec,new):
+        return new[self.pos]
+    def get(self,aggrec):
+        return aggrec
+
+
+
 
 class Miner(object):
     def __init__(self,pos):
