@@ -27,7 +27,7 @@ from collections import defaultdict
 
 def main(argv):
     try:
-        opts, args = getopt.getopt(argv, "h", ["groupby=","sum=","count=","countuniq=","concat=","concatuniq=","max=","min=","seperator=","concat-seperator=","file=","help"])
+        opts, args = getopt.getopt(argv, "h", ["groupby=","sortedgroupby=","sum=","count=","countuniq=","concat=","concatuniq=","max=","min=","seperator=","concat-seperator=","file=","help"])
     except getopt.GetoptError, err:
         usage()
         sys.exit(2)
@@ -39,12 +39,15 @@ def main(argv):
         
     aggregators=[]
     keycols=[]
+    sorted_keycols=[]
     seperator="|"
     concat_seperator=","
     outputstream=sys.stdout
     for opt, arg in opts:
         if opt in ("--groupby"):
             keycols.extend(int(el) for el in arg.split(","))
+        elif opt in ("--sortedgroupby"):
+            sorted_keycols=[int(col) for col in arg.split(",")]
         elif opt in ( "--sum"):
             aggregators.extend(Summer(el) for el in arg.split(","))
         elif opt in ( "--count"):
@@ -71,23 +74,36 @@ def main(argv):
         else:
             assert False, "Invalid option"
     
+    def printdb(db,sorted_key):
+        for agg_key in db:
+            line=sorted_key[:]
+            line.extend(agg_key)
+            aggregated_record=db[agg_key]
+            for i,aggregator in enumerate( aggregators ):
+                line.append ( str (aggregator.get( aggregated_record [i] ) ) )
+            outputstream.write ( seperator.join ( line ) + '\n')
+        return 0
+ 
+
+
     db=defaultdict(dict)
+    sorted_key=[]
     for line in inputstream:
         new_elements=line.split(seperator) 
+        if sorted_keycols:
+            new_sorted_key=[new_elements[col] for col in sorted_keycols]   
+            if sorted_key!=new_sorted_key:
+                if db: 
+                    printdb(db,sorted_key)
+                    db=defaultdict(dict)
+                sorted_key=new_sorted_key
         agg_key=tuple(new_elements[i] for i in keycols)
         agg_record=db[agg_key]
         for i,aggregator in enumerate(aggregators):
             agg_record[i]=aggregator.add(agg_record.setdefault(i),new_elements)
+    printdb(db,sorted_key)
             
-    for agg_key in db:
-        line=[]
-        line.extend(agg_key)
-        aggregated_record=db[agg_key]
-        for i,aggregator in enumerate( aggregators ):
-            line.append ( str (aggregator.get( aggregated_record [i] ) ) )
-        outputstream.write ( seperator.join ( line ) + '\n')
-    return 0
-    
+   
 def usage ():
     print globals()['__doc__']
  
