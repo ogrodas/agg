@@ -5,11 +5,6 @@ import filecmp
 
 
 class TestAggInt(unittest.TestCase):
-    def setUp(self):
-        for file in os.listdir('tests'):
-            if file.endswith("test"):
-                os.remove(os.path.join("tests",file))
-        
     def test_onlycount(self):
         """equal to wc l"""
         agg.main("--count= --file=tests/count1.test tests/testdata".split())
@@ -44,6 +39,9 @@ class TestAggInt(unittest.TestCase):
         self.assertTrue( filecmp.cmp(  "tests/min1.expected","tests/min1.test" ) )
 
 if __name__ == '__main__':
+    for file in os.listdir('tests'):
+        if file.endswith("test"):
+            os.remove(os.path.join("tests",file))
     unittest.main()
 
 
