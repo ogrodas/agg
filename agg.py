@@ -9,7 +9,7 @@ DESCRIPTION
 
 EXAMPLES
 
-    cat data.csv | agg --groupby=1 --count=2 --sum=2
+    cat data.csv | agg --groupby=1 --count --sum=2
 
 AUTHOR
 
@@ -24,9 +24,11 @@ import itertools
 
 def main(argv):
     try:
-        opts, args = getopt.getopt(argv, "h", ["groupby=","sortedgroupby=","sum=","count=","countuniq=","concat=","concatuniq=","max=","min=","first=","last=","seperator=","concat-seperator=","file=","strip","help"])
+        
+        opts, args = getopt.getopt(argv, "h", ["groupby=","count","sum=","countuniq=","concat=","concatuniq=","max=","min=","first=","last=","seperator=","concat-seperator=","colorder=","inputsorted=","file=","strip","help"])
     except getopt.GetoptError, err:
-        usage()
+        print str(err)
+        print "agg --help for more information"
         sys.exit(2)
 
     if args:
@@ -36,90 +38,111 @@ def main(argv):
         
     aggregators=[]
     keycols=[]
-    sorted_keycols=[]
     seperator="|"
     concat_seperator=","
     outputstream=sys.stdout
     col_strip=False
+    colorder=[]
+    inputsorted=[]
     for opt, arg in opts:
-        if opt in ("--groupby"):
-            keycols.extend(int(el) for el in arg.split(","))
-        elif opt in ("--sortedgroupby"):
-            sorted_keycols=[int(col) for col in arg.split(",")]
-        elif opt in ( "--sum"):
-            aggregators.extend(Summer(el) for el in arg.split(","))
-        elif opt in ( "--count"):
-            aggregators.extend(Counter() for el in arg.split(","))
-        elif opt in ( "--countuniq"):
-            aggregators.extend(UniqCounter(el) for el in arg.split(","))
-        elif opt in ( "--concat"):
-            aggregators.extend(Concatter(el,concat_seperator) for el in arg.split(","))
-        elif opt in ( "--concatuniq"):
-            aggregators.extend(UniqConcatter(el,concat_seperator) for el in arg.split(","))
-        elif opt in ( "--max"):
-            aggregators.extend(Maxer(el) for el in arg.split(","))
-        elif opt in ( "--min"):
-            aggregators.extend(Miner(el) for el in arg.split(","))
-        elif opt in ( "--last"):
-            aggregators.extend(Last(el) for el in arg.split(","))
-        elif opt in ( "--first"):
-            aggregators.extend(First(el) for el in arg.split(","))
+        if opt in ("--groupby","--sum","--countuniq","concatuniq","--max","--min","--last","--fist","--colorder","--inputsorted"):
+            try:
+                columns=[int(col) for col in arg.split(",")]
+            except ValueError,e:
+                sys.stderr.write("Error in arguments to option %s. Could not parse: '%s'\n" % (opt,arg))
+                print (e)
+                sys.exit(2)
+        if opt in ("--groupby="):
+            keycols.extend(int(el) for el in columns)
+        elif opt in ( "--sum="):
+            aggregators.extend(Summer(el) for el in columns)
+        elif opt in ( "--count="):
+            aggregators.append(Counter())
+        elif opt in("--countuniq="):
+            aggregators.extend(UniqCounter(el) for el in columns)
+        elif opt in ( "--concat="):
+            aggregators.extend(Concatter(el,concat_seperator) for el in columns)
+        elif opt in ( "--concatuniq="):
+            aggregators.extend(UniqConcatter(el,concat_seperator) for el in columns)
+        elif opt in ( "--max="):
+            aggregators.extend(Maxer(el) for el in columns)
+        elif opt in ( "--min="):
+            aggregators.extend(Miner(el) for el in columns)
+        elif opt in ( "--last="):
+            aggregators.extend(Last(el) for el in columns)
+        elif opt in ( "--first="):
+            aggregators.extend(First(el) for el in columns)
+        elif opt in ( "--colorder="):
+            colorder=[int(col) for col in columns]
         elif opt in ( "--seperator"):
             seperator=arg
-        elif opt in ( "--concat--seperator"):
+        elif opt in ( "--concat-seperator"):
             concat_seperator=arg
         elif opt in ("--file"):
             outputstream=open(arg,"a+",0)
         elif opt in ("--strip"):
             col_strip=True
+        elif opt in ("--inputsorted"):
+            inputsorted=columns
         elif opt in ('-h','--help'):
             usage()
             sys.exit()
         else:
-            assert False, "Invalid option"
+            sys.stderr.write("Invalid option: %s %s\n" % (opt,arg))
+            sys.exit(2)
+
+    numcols=len(keycols) + len(aggregators)
+    if colorder:
+        if max(colorder) > len(aggregators):
+            sys.stderr.write("Error in colorder argument: There is fewer than %i columns in the output\n" % max(colorder))
+            sys.exit(2)
+        if len(set(colorder))!=len(colorder):
+            sys.stderr.write("Warning: Duplicates in colroder argument\n")
+
+    for i in range(len(keycols) +len(aggregators)):
+        if i not in colorder:
+            colorder.append(i)
+
+    sorted_keycols=get_sorted_keycols(keycols,inputsorted)
     
-    def printdb(db,sorted_key):
+    def printdb(db):
         for agg_key in db:
-            line=sorted_key[:]
+            line=[]
             line.extend(agg_key)
             aggregated_record=db[agg_key]
             for i,aggregator in enumerate( aggregators ):
-                line.append ( str (aggregator.get( aggregated_record [i] ) ) )
-            outputstream.write ( seperator.join ( line ) + '\n')
+                line.append ( str (aggregator.get( aggregated_record [i] ) ) )  
+            outputline=(line[i] for i in colorder)
+            outputstream.write ( seperator.join ( outputline ) + '\n')
         return 0
  
-
-
-    db=OrderedDict()
-    sorted_key=[]
+    db=dict()
+    old_sortedkey=[]
+    new_sortedkey=[]
     for line in inputstream:
-        if not line.split():continue
-        new_elements=line.split(seperator) 
+        line=line.rstrip( "\n" )
+        if not line: continue
         if col_strip:
-            new_elements=[col.strip() for col in new_elements]
-            print "--stripasdkløfjaslødfkjasdlk------------"
-        print new_elements
-            
+            new_elements=[col.strip() for col in line.split(seperator)]
+        else:
+            new_elements=line.split(seperator)
         if sorted_keycols:
-            new_sorted_key=[new_elements[col] for col in sorted_keycols]   
-            if sorted_key!=new_sorted_key:
-                if db: 
-                    printdb(db,sorted_key)
-                    db=OrderedDict()
-                sorted_key=new_sorted_key
+            new_sortedkey=[new_elements[i] for i in sorted_keycols]
+            if new_sortedkey!=old_sortedkey:
+                if db:
+                    printdb(db)
+                    db={}
         agg_key=tuple(new_elements[i] for i in keycols)
         agg_record=db.setdefault(agg_key,{})
         for i,aggregator in enumerate(aggregators):
             agg_record[i]=aggregator.add(agg_record.setdefault(i),new_elements)
-    printdb(db,sorted_key)
+        old_sortedkey=new_sortedkey
+    printdb(db)
             
    
 def usage ():
     print globals()['__doc__']
  
-def nesteddict():
-    return defaultdict(nesteddict)
-
 
 class Summer(object):
     def __init__(self,pos):
@@ -223,8 +246,6 @@ class Last(object):
         return aggrec
 
 
-
-
 class Miner(object):
     def __init__(self,pos):
         self.pos=int(pos)
@@ -242,108 +263,26 @@ class Miner(object):
         return aggrec
 
 
-## {{{ http://code.activestate.com/recipes/576693/ (r6)
-from UserDict import DictMixin
+def get_sorted_keycols(aggkey, sortkey):
+    """if the order of the input data is unkown nothing can be printed before all of 
+the inputdata is processed. If one or more of the columns in the aggregation key is 
+sorted in the input data we know that when ever the value of these columns 
+changes it will never change back. Because of this the the aggregation so far
+can be printed and flushed from memory. This will reduce the memory recqueriments 
+on large datasets."""
+    for i in range (len(sortkey),0,-1):
+        if sublistExists(aggkey,sortkey[0:i]):
+            print "sortkey",sortkey[0:i]
+            return sortkey[0:i]
+    return []
 
-class OrderedDict(dict, DictMixin):
-
-    def __init__(self, *args, **kwds):
-        if len(args) > 1:
-            raise TypeError('expected at most 1 arguments, got %d' % len(args))
-        try:
-            self.__end
-        except AttributeError:
-            self.clear()
-        self.update(*args, **kwds)
-
-    def clear(self):
-        self.__end = end = []
-        end += [None, end, end]         # sentinel node for doubly linked list
-        self.__map = {}                 # key --> [key, prev, next]
-        dict.clear(self)
-
-    def __setitem__(self, key, value):
-        if key not in self:
-            end = self.__end
-            curr = end[1]
-            curr[2] = end[1] = self.__map[key] = [key, curr, end]
-        dict.__setitem__(self, key, value)
-
-    def __delitem__(self, key):
-        dict.__delitem__(self, key)
-        key, prev, next = self.__map.pop(key)
-        prev[2] = next
-        next[1] = prev
-
-    def __iter__(self):
-        end = self.__end
-        curr = end[2]
-        while curr is not end:
-            yield curr[0]
-            curr = curr[2]
-
-    def __reversed__(self):
-        end = self.__end
-        curr = end[1]
-        while curr is not end:
-            yield curr[0]
-            curr = curr[1]
-
-    def popitem(self, last=True):
-        if not self:
-            raise KeyError('dictionary is empty')
-        if last:
-            key = reversed(self).next()
-        else:
-            key = iter(self).next()
-        value = self.pop(key)
-        return key, value
-
-    def __reduce__(self):
-        items = [[k, self[k]] for k in self]
-        tmp = self.__map, self.__end
-        del self.__map, self.__end
-        inst_dict = vars(self).copy()
-        self.__map, self.__end = tmp
-        if inst_dict:
-            return (self.__class__, (items,), inst_dict)
-        return self.__class__, (items,)
-
-    def keys(self):
-        return list(self)
-
-    setdefault = DictMixin.setdefault
-    update = DictMixin.update
-    pop = DictMixin.pop
-    values = DictMixin.values
-    items = DictMixin.items
-    iterkeys = DictMixin.iterkeys
-    itervalues = DictMixin.itervalues
-    iteritems = DictMixin.iteritems
-
-    def __repr__(self):
-        if not self:
-            return '%s()' % (self.__class__.__name__,)
-        return '%s(%r)' % (self.__class__.__name__, self.items())
-
-    def copy(self):
-        return self.__class__(self)
-
-    @classmethod
-    def fromkeys(cls, iterable, value=None):
-        d = cls()
-        for key in iterable:
-            d[key] = value
-        return d
-
-    def __eq__(self, other):
-        if isinstance(other, OrderedDict):
-            return len(self)==len(other) and self.items() == other.items()
-        return dict.__eq__(self, other)
-
-    def __ne__(self, other):
-        return not self == other
-## end of http://code.activestate.com/recipes/576693/ }}}
+def sublistExists(mainlist, sublist):
+    print mainlist
+    print sublist
+    for i in range(len(mainlist)-len(sublist)+1):
+        if sublist == mainlist[i:i+len(sublist)]:
+            return True #return position (i) if you wish
+    return False #or -1
 
 
 if __name__=="__main__":
@@ -351,3 +290,9 @@ if __name__=="__main__":
         sys.exit(main(sys.argv[1:]))
     except KeyboardInterrupt,e:
         sys.stderr.write("User presdd Ctrl+C. Exiting..\n")
+    except IOError,e:
+        print str(e)
+        if e.errno==32: #Broken Pipe, happend typically when piping to the commandline tool head
+            pass
+        else:
+            raise
