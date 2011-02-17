@@ -47,7 +47,7 @@ def main(argv):
     for opt, arg in opts:
         if opt in ("--groupby","--sum","--countuniq","concatuniq","--max","--min","--last","--fist","--colorder","--inputsorted"):
             try:
-                columns=[int(col) for col in arg.split(",")]
+                columns=[int(col)-1 for col in arg.split(",")]
             except ValueError,e:
                 sys.stderr.write("Error in arguments to option %s. Could not parse: '%s'\n" % (opt,arg))
                 print (e)
@@ -272,13 +272,10 @@ can be printed and flushed from memory. This will reduce the memory recqueriment
 on large datasets."""
     for i in range (len(sortkey),0,-1):
         if sublistExists(aggkey,sortkey[0:i]):
-            print "sortkey",sortkey[0:i]
             return sortkey[0:i]
     return []
 
 def sublistExists(mainlist, sublist):
-    print mainlist
-    print sublist
     for i in range(len(mainlist)-len(sublist)+1):
         if sublist == mainlist[i:i+len(sublist)]:
             return True #return position (i) if you wish
